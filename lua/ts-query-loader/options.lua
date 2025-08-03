@@ -1,3 +1,4 @@
+---@class OptionLib
 local M = {}
 
 ---@return Options
@@ -10,14 +11,16 @@ M.new = function()
 
 	---@class Options
 	---@field queries { [string]: QueryOption }
+	---@field load_config_mode "on_filetype"|"startup"
+	---@field debugging boolean
 	local default = {
 		queries = {
 			highlights = {
 				disabled = false,
 				disabled_parsers = {},
 				skip_ts_check = true,
-				handler = function(parser)
-					vim.treesitter.start(nil, parser)
+				handler = function()
+					vim.treesitter.start()
 				end,
 			},
 			folds = {
@@ -37,6 +40,9 @@ M.new = function()
 				end,
 			},
 		},
+
+		load_config_mode = "on_filetype",
+		debugging = false,
 	}
 
 	return default
