@@ -13,6 +13,7 @@ Hence, this plugin provides some of functionalities to:
 - Auto-enable all available _queries_ features.
 - Configure filtering _query_, _parser_ from auto-enabling.
 - Configure changing how _query_ feature being enabled.
+- Ensure installing a list of parser.
 
 ## 📜 Requirements
 
@@ -26,6 +27,7 @@ Hence, this plugin provides some of functionalities to:
 ```lua
 {
 	"Corn207/ts-query-loader.nvim",
+	version = "*", -- Choose latest stable version
 	dependencies = {
 		"nvim-treesitter/nvim-treesitter",
 	},
@@ -35,14 +37,15 @@ Hence, this plugin provides some of functionalities to:
 
 ## ⚙️ Configuration
 
-Work out-of-the-box, but this is enough for general usage:
+By default, no configuration is already enough.
+Below are several fields for general usage:
 
 ```lua
 {
 	queries = {
 		highlights = { -- Name of query
-			disabled = false, -- For all parser
-			disabled_parsers = {}, -- For each parser name
+			disabled = false, -- Prevent query from being enable
+			disabled_parsers = {}, -- Prevent query with specific parsers
 		},
 		folds = {
 			disabled = false,
@@ -53,11 +56,17 @@ Work out-of-the-box, but this is enough for general usage:
 			disabled_parsers = {},
 		},
 	},
+	ensure_installed = {}, -- Auto-install list of parser names
 }
 ```
 
-Any options that passed to `setup()` or through `opts = {...}`
-will be merged (`vim.tbl_deep_extend`) with this default options:
+> [!NOTE]
+> Above table will be recusively merged to internal default option.
+> Simply pass the table to `opts = ...` or `require("ts-query-loader").setup(...)`.
+>
+> The table can be partial, doesn't have to be full like above.
+
+Example of internal default option table:
 
 ```lua
 {
@@ -65,9 +74,9 @@ will be merged (`vim.tbl_deep_extend`) with this default options:
 		highlights = {
 			disabled = false,
 			disabled_parsers = {},
-			skip_ts_check = true, -- Refer to Technicality
-			handler = function(parser) -- Will run in FileType event
-				vim.treesitter.start(nil, parser) -- Copy from nvim-treesitter docs
+			skip_ts_check = true, -- Refer to Technicality section
+			handler = function() -- Run on found Filetype with matching Query
+				vim.treesitter.start()
 			end,
 		},
 		folds = {
@@ -87,11 +96,12 @@ will be merged (`vim.tbl_deep_extend`) with this default options:
 			end,
 		},
 	},
-	load_config_mode = "on_filetype", -- Refer to Technicality
+	ensure_installed = {},
+	load_config_mode = "on_filetype", -- Refer to Technicality section
 }
 ```
 
-## User commands
+## ⚡ User commands
 
 All in a form of subcommand in `TSQueryLoader`:
 
@@ -111,16 +121,15 @@ All in a form of subcommand in `TSQueryLoader`:
 
 ## 🛠️ Technicality
 
-Seem this plugin is over-engineered, convoluted right?
+**Seem this plugin is over-engineered, convoluted right?**
 
 Well, this solves me of some edge cases involving assign
 which _filetype_ will use which _parser_, _query_ and how it runs.
-It starts as a small snippet but then it grows as I often messing around treesitter.
+It starts as a small snippet but then it grows as I often mess around treesitter.
 Also I don't mine the startup time ~1ms with more tools.
 
 Parsers and queries is provided by [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter).
 Each _parser_ has several corresponding _filetype_ and _query_.
-
 You can find them through:
 
 - Installed _parser_ through [vim.api.nvim_get_runtime_file("parser/\*.\*", true)](<https://neovim.io/doc/user/api.html#nvim_get_runtime_file()>)
@@ -130,17 +139,18 @@ You can find them through:
 
 This plugin mainly use above APIs,
 some table filtering,
-documented _how to enable_ query feature on [nvim-treesitter docs](https://github.com/nvim-treesitter/nvim-treesitter/blob/main/README.md#supported-features)
+as recommended on [nvim-treesitter docs](https://github.com/nvim-treesitter/nvim-treesitter/blob/main/README.md#supported-features).
 
 The flow of plugin is somewhat:
 
 - Find all installed _parsers_.
+- Auto-install _parsers_ from _ensure_installed_.
 - Get all associated _filetypes_.
 - Get all supported _queries_.
 - Filter with _options_.
 - Produce a final _config_ table.
-- Every time `FileType` event is triggered with found _filetype_ above,
-  run a _handler_ (just a configured function in _options_) for each query.
+- Every time _FileType_ event is triggered with found _filetype_ above,
+  run a _handler_ (just a configured function in _options_) for each matching query.
 
 > [!NOTE]
 > Note, the cost of running function to find parser's supported queries is high.
@@ -156,5 +166,4 @@ The flow of plugin is somewhat:
 
 ## 🎯 Roadmap
 
-- Add `ensure_install` to auto-install `nvim-treesitter` parser.
 - Deeper configuration for each filetype with its own handler, own parser.

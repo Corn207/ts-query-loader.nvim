@@ -11,6 +11,7 @@ M.new = function()
 
 	---@class Options
 	---@field queries { [string]: QueryOption }
+	---@field ensure_installed string[]
 	---@field load_config_mode "on_filetype"|"startup"
 	---@field debugging boolean
 	local default = {
@@ -41,6 +42,7 @@ M.new = function()
 			},
 		},
 
+		ensure_installed = {},
 		load_config_mode = "on_filetype",
 		debugging = false,
 	}
@@ -52,7 +54,7 @@ end
 ---@param opts Options Options table to be merged with
 ---@return Options
 M.merge = function(base, opts)
-	if opts ~= nil and not vim.tbl_isempty(opts) then
+	if (opts ~= nil and not vim.tbl_isempty(opts)) then
 		return vim.tbl_deep_extend("force", base, opts)
 	end
 

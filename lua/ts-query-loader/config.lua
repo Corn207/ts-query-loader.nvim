@@ -8,7 +8,7 @@ M.new = function()
 
 	---@class Config
 	---@field parsers ParserConfigs
-	---@field handlers Handlers
+	---@field handlers Handlers Dictionary with key as _query name_, value as _function_.
 	local default = {
 		parsers = {},
 		handlers = {},
@@ -29,7 +29,6 @@ M.parser_config = {
 		return default
 	end,
 }
-
 
 ---Get installed parsers from rtp
 ---@return string[]
@@ -77,78 +76,6 @@ M.get_supported_queries = function(parser, options)
 	end
 
 	return supported_queries
-end
-
----Get FiletypeConfig or ParserConfig based on filetype
----@param filetype string
----@param config Config
----@return {name:string, config:ParserConfig}|?
-M.get_parser_config_by_ft = function(filetype, config)
-	for ps_name, ps_config in pairs(config.parsers) do
-		if (vim.list_contains(ps_config.filetypes, filetype)) then
-			return {
-				name = ps_name,
-				config = ps_config,
-			}
-		end
-	end
-
-	return nil
-end
-
----Populate queries for specific parser name in config
----@param parser string
----@param config Config
----@param options Options
----@return boolean
-M.populate_queries_by_parser_name = function(parser, config, options)
-	local queries = M.get_supported_queries(parser, options)
-	if (queries == nil) then
-		config.parsers[parser] = nil
-		return false
-	end
-
-	config.parsers[parser].queries = queries
-	return true
-end
-
----Populate queries for all parser configs
----@param config Config
----@param options Options
-M.populate_queries = function(config, options)
-	for ps_name, ps_config in pairs(config.parsers) do
-		local queries = M.get_supported_queries(ps_name, options)
-		if queries == nil then
-			config.parsers[ps_name] = nil
-		else
-			ps_config.queries = queries
-		end
-	end
-end
-
----Create config with options
----@param options Options
----@return Config
-M.create_config = function(options)
-	local config = M.new()
-
-	---Populate parser configs without queries
-	for _, parser in pairs(M.get_installed_parsers()) do
-		local parser_config = M.parser_config.new()
-		parser_config.filetypes = vim.treesitter.language.get_filetypes(parser)
-		config.parsers[parser] = parser_config
-	end
-
-	---Populate query handlers
-	for name, option in pairs(options.queries) do
-		config.handlers[name] = option.handler
-	end
-
-	if (options.load_config_mode == "startup") then
-		---Populate queries for parser configs
-	end
-
-	return config
 end
 
 return M
