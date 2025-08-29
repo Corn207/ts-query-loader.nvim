@@ -1,10 +1,8 @@
 ---@class PluginMain
 ---@field opts Options? Passed by _setup()_, to be merged with _options_.
----@field options Options? Base options.
 ---@field config Config? Used for autocmd logics.
 local M = {
 	opts = nil,
-	options = nil,
 	config = nil,
 }
 
@@ -16,10 +14,8 @@ local autocmd_group_name = "TSQueryLoader"
 M.usercmds = {
 	options = {
 		show = function()
-			vim.notify(vim.inspect(M.options), vim.log.levels.INFO)
+			vim.notify(vim.inspect(M.opts), vim.log.levels.INFO)
 		end,
-		load_default = M.set_options_default,
-		load = M.set_options_with_opts,
 	},
 	config = {
 		show = function()
@@ -44,7 +40,7 @@ M.usercmds = {
 			local msg = table.concat(lines, "\n")
 			vim.notify(msg, vim.log.levels.INFO)
 		end,
-		load_default = M.set_config_default,
+		create = M.create_config,
 		load = M.set_all_parser_configs_queries,
 	},
 	autocmd = {
@@ -89,92 +85,59 @@ M.create_usercmds = function()
 				local keys = vim.tbl_keys(cmds)
 				return keys
 			end
-		end
+		end,
 	})
 end
 
-M.set_options_default = function()
-	local lib = require("ts-query-loader.options")
-	M.options = lib.new()
-end
-
-M.set_options_with_opts = function()
-	local lib = require("ts-query-loader.options")
-	M.options = lib.merge(M.options, M.opts)
-end
-
----Run ensured installed parser from _options_
----@param parsers string[]? List of parsers
----@return string[]? #List of will be installed parser name
-M.ensure_install_parser = function(parsers)
-	if (#M.options.ensure_installed == 0) then
-		return nil
+---Merge *opts* to current options.
+---@param opts Options
+M.merge_opts = function(opts)
+	if (type(opts) == "table" and not vim.tbl_isempty(opts)) then
+		M.opts = vim.tbl_deep_extend("force", M.opts, opts)
 	end
+end
 
-	local installed
+---Install parsers
+---@param parsers string[]? If nil, install parsers in *opts.ensure_installed*.
+M.install_parsers = function(parsers)
 	if (parsers == nil) then
-		local lib = require("ts-query-loader.config")
-		installed = lib.get_installed_parsers()
-	else
-		installed = parsers
-	end
-
-	local missing = vim.tbl_filter(
-		function(parser)
-			return not vim.list_contains(installed, parser)
-		end,
-		M.options.ensure_installed)
-	if (#missing == 0) then
-		return nil
-	end
-
-	local available = require("nvim-treesitter").get_available()
-	local correct = {}
-	local incorrect = {}
-
-	for _, value in ipairs(missing) do
-		if (vim.list_contains(available, value)) then
-			table.insert(correct, value)
-		else
-			table.insert(incorrect, value)
+		if (#M.opts.ensure_installed == 0) then
+			return
 		end
+	elseif (#parsers == 0) then
+		return
 	end
 
-	if (#incorrect > 0) then
-		table.insert(incorrect, 1, "# Incorrect 'ensure_installed'")
-		local msg = table.concat(incorrect, "\n")
-		vim.notify(msg, vim.log.levels.WARN)
+	if (vim.fn.executable("tree-sitter") == 0) then
+		vim.notify("tree-sitter CLI is not installed.", vim.log.levels.WARN)
+		return
 	end
 
-	if (#correct > 0) then
-		require("nvim-treesitter").install(correct)
-		return correct
+	if (parsers == nil) then
+		require("nvim-treesitter").install(M.opts.ensure_installed)
+	else
+		require("nvim-treesitter").install(parsers)
 	end
-
-	return nil
 end
 
-M.set_config_default = function()
+---Create config from installed parsers and options
+M.create_config = function()
 	local lib = require("ts-query-loader.config")
 	M.config = lib.new()
 
 	local installed_parsers = lib.get_installed_parsers()
-	local newly_installed_parsers = M.ensure_install_parser(installed_parsers)
-	if (newly_installed_parsers ~= nil) then
-		vim.list_extend(installed_parsers, newly_installed_parsers)
-	end
 
 	for _, parser in ipairs(installed_parsers) do
-		local config = lib.parser_config.new()
-		config.filetypes = vim.treesitter.language.get_filetypes(parser)
-		M.config.parsers[parser] = config
+		local ps_config = lib.parser_config.new()
+		ps_config.filetypes = vim.treesitter.language.get_filetypes(parser)
+		M.config.parsers[parser] = ps_config
 	end
 
-	for name, option in pairs(M.options.queries) do
+	for name, option in pairs(M.opts.queries) do
 		M.config.handlers[name] = option.handler
 	end
 
-	if (M.options.load_config_mode == "startup") then
+	if (M.opts.load_config_mode == "startup") then
 		M.set_all_parser_configs_queries()
 	end
 end
@@ -184,7 +147,7 @@ M.set_all_parser_configs_queries = function()
 	local lib = require("ts-query-loader.config")
 
 	for parser, config in pairs(M.config.parsers) do
-		local queries = lib.get_supported_queries(parser, M.options)
+		local queries = lib.get_supported_queries(parser, M.opts)
 		if (queries == nil) then
 			M.config.parsers[parser] = nil
 		else
@@ -197,7 +160,7 @@ end
 M.set_parser_config_queries = function(parser)
 	local lib = require("ts-query-loader.config")
 
-	local queries = lib.get_supported_queries(parser, M.options)
+	local queries = lib.get_supported_queries(parser, M.opts)
 	if (queries == nil) then
 		M.config.parsers[parser] = nil
 		return false
@@ -235,7 +198,7 @@ M.create_autocmds = function()
 		return
 	end
 
-	if (M.options.load_config_mode == "on_filetype") then
+	if (M.opts.load_config_mode == "on_filetype") then
 		vim.api.nvim_create_autocmd("FileType", {
 			pattern = patterns,
 			group = group_id,
@@ -258,9 +221,9 @@ M.create_autocmds = function()
 						plugin.config.handlers[query]()
 					end
 				end
-			end
+			end,
 		})
-	elseif (M.options.load_config_mode == "startup") then
+	elseif (M.opts.load_config_mode == "startup") then
 		vim.api.nvim_create_autocmd("FileType", {
 			pattern = patterns,
 			group = group_id,
@@ -276,20 +239,21 @@ M.create_autocmds = function()
 						plugin.config.handlers[query]()
 					end
 				end
-			end
+			end,
 		})
 	end
 end
 
 ---Plugin's entry point
 M.setup = function(opts)
-	M.opts = opts
-	M.create_usercmds()
+	M.opts = require("ts-query-loader.options").new()
+	M.merge_opts(opts)
 
-	M.set_options_default()
-	M.set_options_with_opts()
-	M.set_config_default()
+	vim.schedule_wrap(M.install_parsers)()
+	M.create_config()
 	M.create_autocmds()
+
+	M.create_usercmds()
 end
 
 return M

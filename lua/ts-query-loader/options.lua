@@ -50,15 +50,4 @@ M.new = function()
 	return default
 end
 
----@param base Options Options base table
----@param opts Options Options table to be merged with
----@return Options
-M.merge = function(base, opts)
-	if (opts ~= nil and not vim.tbl_isempty(opts)) then
-		return vim.tbl_deep_extend("force", base, opts)
-	end
-
-	return base
-end
-
 return M
